@@ -72,7 +72,7 @@ int main()
 		// if ((rx_counter + in_progress_count) >= num_transfers)
 			// goto end_rx_loop0;
 		
-
+		usleep(2600);
 		ioctl(fd, START_XFER, &buffer_id);
 
 		in_progress_count++;

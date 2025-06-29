@@ -165,7 +165,9 @@ static void wait_for_transfer(struct dma_proxy_channel *pchannel_p)
 		if (dma_regs)
 		{
 			u32 s2mm_status = readl(dma_regs + 0x34);
+			u32 s2mm_dmacr = readl(dma_regs + 0x30);
 			printk(KERN_ERR "S2MM_DMASR after timeout: 0x%08x\n", s2mm_status);
+			printk(KERN_ERR "S2MM_DMACR after timeout: 0x%08x\n", s2mm_dmacr);
 			iounmap(dma_regs);
 		}
 
@@ -483,25 +485,25 @@ static int create_channel(struct platform_device *pdev, struct dma_proxy_channel
 														  (sizeof(struct channel_buffer) * bd) + offsetof(struct channel_buffer, buffer));
 
 
-	void __iomem *dma_regs = ioremap(0x40400000, 0x100); // Map DMA registers
+	// void __iomem *dma_regs = ioremap(0x40400000, 0x100); // Map DMA registers
 
-	if (dma_regs) {
-		u32 dmacr = readl(dma_regs + 0x30);
+	// if (dma_regs) {
+	// 	u32 dmacr = readl(dma_regs + 0x30);
 
-		// Clear existing IRQDelay (bits 31:24) and Dly_IrqEn (bit 18)
-		dmacr &= ~0xFF000000;         // Clear IRQDelay field
-		dmacr &= ~(1 << 18);          // Clear Dly_IrqEn bit
+	// 	// Clear existing IRQDelay (bits 31:24) and Dly_IrqEn (bit 18)
+	// 	dmacr &= ~0xFF000000;         // Clear IRQDelay field
+	// 	dmacr &= ~(1 << 18);          // Clear Dly_IrqEn bit
 
-		// Set new IRQDelay value (e.g., 32 AXI-Stream beats) and enable Dly_IrqEn
-		dmacr |= (0 << 24);          // IRQDelay=32
-		dmacr |= (0 << 18);           // Enable Dly_IrqEn
+	// 	// Set new IRQDelay value (e.g., 32 AXI-Stream beats) and enable Dly_IrqEn
+	// 	dmacr |= (0 << 24);          // IRQDelay=32
+	// 	dmacr |= (0 << 18);           // Enable Dly_IrqEn
 
-		writel(dmacr, dma_regs + 0x30);
+	// 	writel(dmacr, dma_regs + 0x30);
 
-		printk(KERN_INFO "Updated S2MM_DMACR: 0x%08x\n", dmacr);
+	// 	printk(KERN_INFO "Updated S2MM_DMACR: 0x%08x\n", dmacr);
 
-		iounmap(dma_regs);
-	}
+	// 	iounmap(dma_regs);
+	// }
 
 	/* The buffer descriptor index into the channel buffers should be specified in each
 	 * ioctl but we will initialize it to be safe.
