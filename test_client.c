@@ -17,7 +17,7 @@
 #include "dma-proxy.h"
 
 static int test_size = BUFFER_SIZE;
-static int num_transfers = 100;
+static int num_transfers = 100000;
 void output(uint8_t *data, int length) {
 	write(STDOUT_FILENO, data, length);
 }
@@ -62,22 +62,22 @@ int main()
 		}
 		in_progress_count--;
 		uint8_t *data = (uint8_t *)buf_ptr[buffer_id].buffer;
-		fprintf(stderr, "%d\n",  buf_ptr[buffer_id].received);
+		// fprintf(stderr, "%d\n",  buf_ptr[buffer_id].received);
 		output(data, buf_ptr[buffer_id].received);
 
-		if (++rx_counter >= num_transfers)
-			break;
+		// if (++rx_counter >= num_transfers)
+			// break;
 		
 
-		if ((rx_counter + in_progress_count) >= num_transfers)
-			goto end_rx_loop0;
+		// if ((rx_counter + in_progress_count) >= num_transfers)
+			// goto end_rx_loop0;
 		
 
 		ioctl(fd, START_XFER, &buffer_id);
 
 		in_progress_count++;
 
-	end_rx_loop0:
+	// end_rx_loop0:
 
 		/* Flip to next buffer treating them as a circular list, and possibly skipping some
 		 * to show the results when prefetching is not happening

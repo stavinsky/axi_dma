@@ -188,8 +188,7 @@ static void wait_for_transfer(struct dma_proxy_channel *pchannel_p)
 	else
 	{
 		pchannel_p->buffer_table_p[bdindex].status = PROXY_NO_ERROR;
-		
-		printk("bytes_left: %d", state.residue);
+
 		size_t bytes_done = pchannel_p->buffer_table_p[bdindex].length - state.residue;
 		pchannel_p->buffer_table_p[bdindex].received = bytes_done;
 	}
@@ -483,6 +482,27 @@ static int create_channel(struct platform_device *pdev, struct dma_proxy_channel
 		pchannel_p->bdtable[bd].dma_handle = (dma_addr_t)(pchannel_p->buffer_phys_addr +
 														  (sizeof(struct channel_buffer) * bd) + offsetof(struct channel_buffer, buffer));
 
+
+	void __iomem *dma_regs = ioremap(0x40400000, 0x100); // Map DMA registers
+
+	if (dma_regs) {
+		u32 dmacr = readl(dma_regs + 0x30);
+
+		// Clear existing IRQDelay (bits 31:24) and Dly_IrqEn (bit 18)
+		dmacr &= ~0xFF000000;         // Clear IRQDelay field
+		dmacr &= ~(1 << 18);          // Clear Dly_IrqEn bit
+
+		// Set new IRQDelay value (e.g., 32 AXI-Stream beats) and enable Dly_IrqEn
+		dmacr |= (0 << 24);          // IRQDelay=32
+		dmacr |= (0 << 18);           // Enable Dly_IrqEn
+
+		writel(dmacr, dma_regs + 0x30);
+
+		printk(KERN_INFO "Updated S2MM_DMACR: 0x%08x\n", dmacr);
+
+		iounmap(dma_regs);
+	}
+
 	/* The buffer descriptor index into the channel buffers should be specified in each
 	 * ioctl but we will initialize it to be safe.
 	 */
@@ -517,10 +537,9 @@ static int dma_proxy_probe(struct platform_device *pdev)
 	 */
 	lp->channel_count = device_property_read_string_array(
 		&pdev->dev,
-		"dma-names", 
-		NULL, 
-		0
-	);
+		"dma-names",
+		NULL,
+		0);
 	if (lp->channel_count <= 0)
 		return 0;
 
