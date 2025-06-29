@@ -17,11 +17,11 @@
 
 MODULE_LICENSE("GPL");
 
-#define DRIVER_NAME 			"dma_proxy"
-#define TX_CHANNEL			0
-#define RX_CHANNEL			1
-#define ERROR 					-1
-#define TEST_SIZE 			1024
+#define DRIVER_NAME "dma_proxy"
+#define TX_CHANNEL 0
+#define RX_CHANNEL 1
+#define ERROR -1
+#define TEST_SIZE 1024
 
 /* The following module parameter controls if the internal test runs when the module is inserted.
  * Note that this test requires a transmit and receive channel to function and uses the first
@@ -33,17 +33,19 @@ module_param(internal_test, int, S_IRUGO);
 /* The following data structures represent a single channel of DMA, transmit or receive in the case
  * when using AXI DMA.  It contains all the data to be maintained for the channel.
  */
-struct proxy_bd {
+struct proxy_bd
+{
 	struct completion cmp;
 	dma_cookie_t cookie;
 	dma_addr_t dma_handle;
 	struct scatterlist sglist;
 };
-struct dma_proxy_channel {
-	struct channel_buffer *buffer_table_p;	/* user to kernel space interface */
+struct dma_proxy_channel
+{
+	struct channel_buffer *buffer_table_p; /* user to kernel space interface */
 	dma_addr_t buffer_phys_addr;
 
-	struct device *proxy_device_p;				/* character device support */
+	struct device *proxy_device_p; /* character device support */
 	struct device *dma_device_p;
 	dev_t dev_node;
 	struct cdev cdev;
@@ -51,12 +53,13 @@ struct dma_proxy_channel {
 
 	struct proxy_bd bdtable[BUFFER_COUNT];
 
-	struct dma_chan *channel_p;				/* dma support */
-	u32 direction;						/* DMA_MEM_TO_DEV or DMA_DEV_TO_MEM */
+	struct dma_chan *channel_p; /* dma support */
+	u32 direction;				/* DMA_MEM_TO_DEV or DMA_DEV_TO_MEM */
 	int bdindex;
 };
 
-struct dma_proxy {
+struct dma_proxy
+{
 	int channel_count;
 	struct dma_proxy_channel *channels;
 	char **names;
@@ -73,6 +76,8 @@ static void sync_callback(void *completion)
 	/* Indicate the DMA transaction completed to allow the other
 	 * thread of control to finish processing
 	 */
+	// printk(KERN_ERR "DMA completion callback triggered!\n");
+
 	complete(completion);
 }
 
@@ -82,15 +87,16 @@ static void sync_callback(void *completion)
  */
 static void start_transfer(struct dma_proxy_channel *pchannel_p)
 {
-	if (!pchannel_p || !pchannel_p->channel_p) {
-	    printk(KERN_ERR "start_transfer: NULL channel or DMA pointer\n");
-	    return;
+	if (!pchannel_p || !pchannel_p->channel_p)
+	{
+		printk(KERN_ERR "start_transfer: NULL channel or DMA pointer\n");
+		return;
 	}
-	if (pchannel_p->bdindex < 0 || pchannel_p->bdindex >= BUFFER_COUNT) {
-	    printk(KERN_ERR "Invalid bdindex: %d\n", pchannel_p->bdindex);
-	    return;
+	if (pchannel_p->bdindex < 0 || pchannel_p->bdindex >= BUFFER_COUNT)
+	{
+		printk(KERN_ERR "Invalid bdindex: %d\n", pchannel_p->bdindex);
+		return;
 	}
-	printk(KERN_ERR "start_transfer: debug1\n");
 	enum dma_ctrl_flags flags = DMA_CTRL_ACK | DMA_PREP_INTERRUPT;
 	struct dma_async_tx_descriptor *chan_desc;
 	struct dma_device *dma_device = pchannel_p->channel_p->device;
@@ -103,13 +109,15 @@ static void start_transfer(struct dma_proxy_channel *pchannel_p)
 	sg_dma_address(&pchannel_p->bdtable[bdindex].sglist) = pchannel_p->bdtable[bdindex].dma_handle;
 	sg_dma_len(&pchannel_p->bdtable[bdindex].sglist) = pchannel_p->buffer_table_p[bdindex].length;
 
-	chan_desc = dma_device->device_prep_slave_sg(pchannel_p->channel_p, &pchannel_p->bdtable[bdindex].sglist, 1, 
-						pchannel_p->direction, flags, NULL);
+	chan_desc = dma_device->device_prep_slave_sg(pchannel_p->channel_p, &pchannel_p->bdtable[bdindex].sglist, 1,
+												 pchannel_p->direction, flags, NULL);
 
-	printk(KERN_ERR "start_transfer: debug2\n");
-	if (!chan_desc) {
+	if (!chan_desc)
+	{
 		printk(KERN_ERR "dmaengine_prep*() error\n");
-	} else {
+	}
+	else
+	{
 		chan_desc->callback = sync_callback;
 		chan_desc->callback_param = &pchannel_p->bdtable[bdindex].cmp;
 
@@ -120,9 +128,10 @@ static void start_transfer(struct dma_proxy_channel *pchannel_p)
 		init_completion(&pchannel_p->bdtable[bdindex].cmp);
 
 		pchannel_p->bdtable[bdindex].cookie = dmaengine_submit(chan_desc);
-		if (dma_submit_error(pchannel_p->bdtable[bdindex].cookie)) {
+		if (dma_submit_error(pchannel_p->bdtable[bdindex].cookie))
+		{
 			printk("Submit error\n");
-	 		return;
+			return;
 		}
 
 		/* Start the DMA transaction which was previously queued up in the DMA engine
@@ -138,6 +147,7 @@ static void wait_for_transfer(struct dma_proxy_channel *pchannel_p)
 	unsigned long timeout = msecs_to_jiffies(3000);
 	enum dma_status status;
 	int bdindex = pchannel_p->bdindex;
+	struct dma_tx_state state;
 
 	pchannel_p->buffer_table_p[bdindex].status = PROXY_BUSY;
 
@@ -145,16 +155,44 @@ static void wait_for_transfer(struct dma_proxy_channel *pchannel_p)
 	 */
 	timeout = wait_for_completion_timeout(&pchannel_p->bdtable[bdindex].cmp, timeout);
 	status = dma_async_is_tx_complete(pchannel_p->channel_p, pchannel_p->bdtable[bdindex].cookie, NULL, NULL);
-
-	if (timeout == 0)  {
-		pchannel_p->buffer_table_p[bdindex].status  = PROXY_TIMEOUT;
+	dmaengine_tx_status(pchannel_p->channel_p, pchannel_p->bdtable[bdindex].cookie, &state);
+	if (timeout == 0)
+	{
+		pchannel_p->buffer_table_p[bdindex].status = PROXY_TIMEOUT;
 		printk(KERN_ERR "DMA timed out\n");
-	} else if (status != DMA_COMPLETE) {
+
+		void __iomem *dma_regs = ioremap(0x40400000, 0x100);
+		if (dma_regs)
+		{
+			u32 s2mm_status = readl(dma_regs + 0x34);
+			printk(KERN_ERR "S2MM_DMASR after timeout: 0x%08x\n", s2mm_status);
+			iounmap(dma_regs);
+		}
+
+		if (pchannel_p->channel_p->device->device_terminate_all)
+		{
+			pchannel_p->channel_p->device->device_terminate_all(pchannel_p->channel_p);
+			printk(KERN_ERR "DMA channel reset after timeout\n");
+		}
+		else
+		{
+			printk(KERN_ERR "No terminate_all support on DMA device\n");
+		}
+	}
+	else if (status != DMA_COMPLETE)
+	{
 		pchannel_p->buffer_table_p[bdindex].status = PROXY_ERROR;
 		printk(KERN_ERR "DMA returned completion callback status of: %s\n",
 			   status == DMA_ERROR ? "error" : "in progress");
-	} else
+	}
+	else
+	{
 		pchannel_p->buffer_table_p[bdindex].status = PROXY_NO_ERROR;
+		
+		printk("bytes_left: %d", state.residue);
+		size_t bytes_done = pchannel_p->buffer_table_p[bdindex].length - state.residue;
+		pchannel_p->buffer_table_p[bdindex].received = bytes_done;
+	}
 }
 
 /* The following functions are designed to test the driver from within the device
@@ -183,7 +221,8 @@ static void test(struct dma_proxy *lp)
 
 	/* Initialize the buffers for the test
 	 */
-	for (i = 0; i < TEST_SIZE / sizeof(unsigned int); i++) {
+	for (i = 0; i < TEST_SIZE / sizeof(unsigned int); i++)
+	{
 		lp->channels[TX_CHANNEL].buffer_table_p[0].buffer[i] = i;
 		lp->channels[RX_CHANNEL].buffer_table_p[0].buffer[i] = 0;
 	}
@@ -207,7 +246,8 @@ static void test(struct dma_proxy *lp)
 	 */
 	for (i = 0; i < TEST_SIZE / sizeof(unsigned int); i++)
 		if (lp->channels[TX_CHANNEL].buffer_table_p[0].buffer[i] !=
-			lp->channels[RX_CHANNEL].buffer_table_p[0].buffer[i]) {
+			lp->channels[RX_CHANNEL].buffer_table_p[0].buffer[i])
+		{
 			printk("buffers not equal, first index = %d\n", i);
 			break;
 		}
@@ -225,8 +265,8 @@ static int mmap(struct file *file_p, struct vm_area_struct *vma)
 	struct dma_proxy_channel *pchannel_p = (struct dma_proxy_channel *)file_p->private_data;
 
 	return dma_mmap_coherent(pchannel_p->dma_device_p, vma,
-					   pchannel_p->buffer_table_p, pchannel_p->buffer_phys_addr,
-					   vma->vm_end - vma->vm_start);
+							 pchannel_p->buffer_table_p, pchannel_p->buffer_phys_addr,
+							 vma->vm_end - vma->vm_start);
 }
 
 /* Open the device file and set up the data pointer to the proxy channel data for the
@@ -249,7 +289,7 @@ static int release(struct inode *ino, struct file *file)
 
 	/* Stop all the activity when the channel is closed assuming this
 	 * may help if the application is aborted without normal closure
-	 * This is not working and causes an issue that may need investigation in the 
+	 * This is not working and causes an issue that may need investigation in the
 	 * DMA driver at the lower level.
 	 */
 	dma_device->device_terminate_all(pchannel_p->channel_p);
@@ -268,35 +308,34 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	/* Get the bd index from the input argument as all commands require it
 	 */
-	if(copy_from_user(&pchannel_p->bdindex, (int *)arg, sizeof(pchannel_p->bdindex)))
+	if (copy_from_user(&pchannel_p->bdindex, (int *)arg, sizeof(pchannel_p->bdindex)))
 		return -EINVAL;
 
 	/* Perform the DMA transfer on the specified channel blocking til it completes
 	 */
-	switch(cmd) {
-		case START_XFER:
-			start_transfer(pchannel_p);
-			break;
-		case FINISH_XFER:
-			wait_for_transfer(pchannel_p);
-			break;
-		case XFER:
-			start_transfer(pchannel_p);
-			wait_for_transfer(pchannel_p);
-			break;
+	switch (cmd)
+	{
+	case START_XFER:
+		start_transfer(pchannel_p);
+		break;
+	case FINISH_XFER:
+		wait_for_transfer(pchannel_p);
+		break;
+	case XFER:
+		start_transfer(pchannel_p);
+		wait_for_transfer(pchannel_p);
+		break;
 	}
 
 	return 0;
 }
 
 static struct file_operations dm_fops = {
-	.owner    = THIS_MODULE,
-	.open     = local_open,
-	.release  = release,
+	.owner = THIS_MODULE,
+	.open = local_open,
+	.release = release,
 	.unlocked_ioctl = ioctl,
-	.mmap	= mmap
-};
-
+	.mmap = mmap};
 
 /* Initialize the driver to be a character device such that is responds to
  * file operations.
@@ -311,19 +350,21 @@ static int cdevice_init(struct dma_proxy_channel *pchannel_p, char *name)
 	 */
 	rc = alloc_chrdev_region(&pchannel_p->dev_node, 0, 1, "dma_proxy");
 
-	if (rc) {
+	if (rc)
+	{
 		dev_err(pchannel_p->dma_device_p, "unable to get a char device number\n");
 		return rc;
 	}
 
-	/* Initialize the device data structure before registering the character 
+	/* Initialize the device data structure before registering the character
 	 * device with the kernel.
 	 */
 	cdev_init(&pchannel_p->cdev, &dm_fops);
 	pchannel_p->cdev.owner = THIS_MODULE;
 	rc = cdev_add(&pchannel_p->cdev, pchannel_p->dev_node, 1);
 
-	if (rc) {
+	if (rc)
+	{
 		dev_err(pchannel_p->dma_device_p, "unable to add char device\n");
 		goto init_error1;
 	}
@@ -332,15 +373,16 @@ static int cdevice_init(struct dma_proxy_channel *pchannel_p, char *name)
 	 * create the device in sysfs which will allow the device node
 	 * in /dev to be created
 	 */
-	if (!local_class_p) {
+	if (!local_class_p)
+	{
 		local_class_p = class_create(
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(6, 3, 13)
-                            THIS_MODULE,
+			THIS_MODULE,
 #endif
-                            DRIVER_NAME
-                            );
+			DRIVER_NAME);
 
-		if (IS_ERR(pchannel_p->dma_device_p->class)) {
+		if (IS_ERR(pchannel_p->dma_device_p->class))
+		{
 			dev_err(pchannel_p->dma_device_p, "unable to create class\n");
 			rc = ERROR;
 			goto init_error2;
@@ -353,9 +395,10 @@ static int cdevice_init(struct dma_proxy_channel *pchannel_p, char *name)
 	 */
 	strcat(device_name, name);
 	pchannel_p->proxy_device_p = device_create(pchannel_p->class_p, NULL,
-					  	 pchannel_p->dev_node, NULL, name);
+											   pchannel_p->dev_node, NULL, name);
 
-	if (IS_ERR(pchannel_p->proxy_device_p)) {
+	if (IS_ERR(pchannel_p->proxy_device_p))
+	{
 		dev_err(pchannel_p->dma_device_p, "unable to create the device\n");
 		goto init_error3;
 	}
@@ -381,7 +424,8 @@ static void cdevice_exit(struct dma_proxy_channel *pchannel_p)
 	/* Take everything down in the reverse order
 	 * from how it was created for the char device
 	 */
-	if (pchannel_p->proxy_device_p) {
+	if (pchannel_p->proxy_device_p)
+	{
 		device_destroy(pchannel_p->class_p, pchannel_p->dev_node);
 
 		/* If this is the last channel then get rid of the /sys/class/dma_proxy
@@ -406,15 +450,17 @@ static int create_channel(struct platform_device *pdev, struct dma_proxy_channel
 	 */
 	pchannel_p->dma_device_p = &pdev->dev;
 	pchannel_p->channel_p = dma_request_chan(&pdev->dev, name);
-	if (!pchannel_p->channel_p) {
-		dev_err(pchannel_p->dma_device_p, "DMA channel request error\n");
-		return ERROR;
+	if (IS_ERR(pchannel_p->channel_p))
+	{
+		int err = PTR_ERR(pchannel_p->channel_p);
+		dev_err(&pdev->dev, "Failed to request DMA channel 's2mm': %d\n", err);
+		return err;
 	}
 
 	/* Initialize the character device for the dma proxy channel
 	 */
 	rc = cdevice_init(pchannel_p, name);
-	if (rc) 
+	if (rc)
 		return rc;
 
 	pchannel_p->direction = direction;
@@ -425,23 +471,24 @@ static int create_channel(struct platform_device *pdev, struct dma_proxy_channel
 	 */
 	pchannel_p->buffer_table_p = (struct channel_buffer *)
 		dmam_alloc_coherent(pchannel_p->dma_device_p,
-					sizeof(struct channel_buffer) * BUFFER_COUNT,
-					&pchannel_p->buffer_phys_addr, GFP_KERNEL);
+							sizeof(struct channel_buffer) * BUFFER_COUNT,
+							&pchannel_p->buffer_phys_addr, GFP_KERNEL);
 	printk(KERN_INFO "Allocating memory, virtual address: %px physical address: %px\n",
-			pchannel_p->buffer_table_p, (void *)pchannel_p->buffer_phys_addr);
+		   pchannel_p->buffer_table_p, (void *)pchannel_p->buffer_phys_addr);
 
-	/* Initialize each entry in the buffer descriptor table such that the physical address	
+	/* Initialize each entry in the buffer descriptor table such that the physical address
 	 * address of each buffer is ready to use later.
 	 */
-	for (bd = 0; bd < BUFFER_COUNT; bd++) 
-		pchannel_p->bdtable[bd].dma_handle = (dma_addr_t)(pchannel_p->buffer_phys_addr + 
-						(sizeof(struct channel_buffer) * bd) + offsetof(struct channel_buffer, buffer));
+	for (bd = 0; bd < BUFFER_COUNT; bd++)
+		pchannel_p->bdtable[bd].dma_handle = (dma_addr_t)(pchannel_p->buffer_phys_addr +
+														  (sizeof(struct channel_buffer) * bd) + offsetof(struct channel_buffer, buffer));
 
-	/* The buffer descriptor index into the channel buffers should be specified in each 
+	/* The buffer descriptor index into the channel buffers should be specified in each
 	 * ioctl but we will initialize it to be safe.
 	 */
 	pchannel_p->bdindex = 0;
-	if (!pchannel_p->buffer_table_p) {
+	if (!pchannel_p->buffer_table_p)
+	{
 		dev_err(pchannel_p->dma_device_p, "DMA allocation error\n");
 		return ERROR;
 	}
@@ -456,9 +503,10 @@ static int dma_proxy_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 
 	printk(KERN_INFO "dma_proxy module initialized\n");
-	
-	lp = (struct dma_proxy *) devm_kmalloc(&pdev->dev, sizeof(struct dma_proxy), GFP_KERNEL);
-	if (!lp) {
+
+	lp = (struct dma_proxy *)devm_kmalloc(&pdev->dev, sizeof(struct dma_proxy), GFP_KERNEL);
+	if (!lp)
+	{
 		dev_err(dev, "Cound not allocate proxy device\n");
 		return -ENOMEM;
 	}
@@ -467,42 +515,47 @@ static int dma_proxy_probe(struct platform_device *pdev)
 	/* Figure out how many channels there are from the device tree based
 	 * on the number of strings in the dma-names property
 	 */
-	lp->channel_count = device_property_read_string_array(&pdev->dev,
-						 "dma-names", NULL, 0);
+	lp->channel_count = device_property_read_string_array(
+		&pdev->dev,
+		"dma-names", 
+		NULL, 
+		0
+	);
 	if (lp->channel_count <= 0)
 		return 0;
 
 	printk("Device Tree Channel Count: %d\r\n", lp->channel_count);
 
 	/* Allocate the memory for channel names and then get the names
-    * from the device tree
+	 * from the device tree
 	 */
-	lp->names = devm_kmalloc_array(&pdev->dev, lp->channel_count, 
-			sizeof(char *), GFP_KERNEL);
+	lp->names = devm_kmalloc_array(&pdev->dev, lp->channel_count,
+								   sizeof(char *), GFP_KERNEL);
 	if (!lp->names)
 		return -ENOMEM;
 
-	rc = device_property_read_string_array(&pdev->dev, "dma-names", 
-					(const char **)lp->names, lp->channel_count);
+	rc = device_property_read_string_array(&pdev->dev, "dma-names",
+										   (const char **)lp->names, lp->channel_count);
 	if (rc < 0)
 		return rc;
-	
+
 	/* Allocate the memory for the channels since the number is known.
 	 */
 	lp->channels = devm_kmalloc(&pdev->dev,
-			sizeof(struct dma_proxy_channel) * lp->channel_count, GFP_KERNEL);
+								sizeof(struct dma_proxy_channel) * lp->channel_count, GFP_KERNEL);
 	if (!lp->channels)
 		return -ENOMEM;
 
 	/* Create the channels in the proxy. The direction does not matter
-	 * as the DMA channel has it inside it and uses it, other than this will not work 
+	 * as the DMA channel has it inside it and uses it, other than this will not work
 	 * for cyclic mode.
 	 */
-	for (i = 0; i < lp->channel_count; i++) {
+	for (i = 0; i < lp->channel_count; i++)
+	{
 		printk("Creating channel %s\r\n", lp->names[i]);
 		rc = create_channel(pdev, &lp->channels[i], lp->names[i], DMA_MEM_TO_DEV);
 
-		if (rc) 
+		if (rc)
 			return rc;
 		total_count++;
 	}
@@ -511,7 +564,7 @@ static int dma_proxy_probe(struct platform_device *pdev)
 		test(lp);
 	return 0;
 }
- 
+
 /* Exit the dma proxy device driver module.
  */
 static int dma_proxy_remove(struct platform_device *pdev)
@@ -520,8 +573,9 @@ static int dma_proxy_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct dma_proxy *lp = dev_get_drvdata(dev);
 
-	if (!dev) {
-	
+	if (!dev)
+	{
+
 		printk(KERN_INFO "no dev on remove\n");
 	}
 
@@ -531,29 +585,43 @@ static int dma_proxy_remove(struct platform_device *pdev)
 	 * channel except for the last channel. Handle the last
 	 * channel seperately.
 	 */
-	for (i = 0; i < lp->channel_count; i++) { 
+	for (i = 0; i < lp->channel_count; i++)
+	{
 		if (lp->channels[i].proxy_device_p)
 			cdevice_exit(&lp->channels[i]);
 		total_count--;
 	}
 
-	printk(KERN_INFO "debug1\n");
 	/* Take care of the DMA channels and any buffers allocated
 	 * for the DMA transfers. The DMA buffers are using managed
 	 * memory such that it's automatically done.
 	 */
 	for (i = 0; i < lp->channel_count; i++)
-		if (lp->channels[i].channel_p) {
-			lp->channels[i].channel_p->device->device_terminate_all(lp->channels[i].channel_p);
-			dma_release_channel(lp->channels[i].channel_p);
+	{
+		struct dma_chan *chan = lp->channels[i].channel_p;
+		if (chan)
+		{
+			if (!chan->device)
+			{
+				continue;
+			}
+			if (!chan->device->device_terminate_all)
+			{
+				continue;
+			}
+
+			chan->device->device_terminate_all(chan);
+			dma_release_channel(chan);
 		}
+	}
 	return 0;
 }
 
 static const struct of_device_id dma_proxy_of_ids[] = {
-	{ .compatible = "xlnx,axi-dma-client",},
-	{}
-};
+	{
+		.compatible = "xlnx,axi-dma-client",
+	},
+	{}};
 
 static struct platform_driver dma_proxy_driver = {
 	.driver = {
@@ -568,7 +636,6 @@ static struct platform_driver dma_proxy_driver = {
 static int __init dma_proxy_init(void)
 {
 	return platform_driver_register(&dma_proxy_driver);
-
 }
 
 static void __exit dma_proxy_exit(void)
@@ -576,10 +643,9 @@ static void __exit dma_proxy_exit(void)
 	platform_driver_unregister(&dma_proxy_driver);
 }
 
-module_init(dma_proxy_init)
-module_exit(dma_proxy_exit)
+module_init(dma_proxy_init);
+module_exit(dma_proxy_exit);
 
 MODULE_AUTHOR("Xilinx, Inc.");
 MODULE_DESCRIPTION("DMA Proxy Prototype");
 MODULE_LICENSE("GPL v2");
-
