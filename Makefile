@@ -17,16 +17,19 @@ test_client: test_client.c
 test_numbers: test_numbers.c
 	$(CC) -Wall -O2 -o test_numbers test_numbers.c
 
+test_numbers: uio.c
+	$(CC) -Wall -O2 -o uio uio.c
+
 # Clean both kernel and userspace objects
 clean:
 	make -C $(KDIR) M=$(PWD) clean
 	$(RM) test_client
 	$(RM) test_numbers
+	$(RM) uio
 
 # Reload the kernel module: remove + insert
 reload: all
 	sudo rmmod mychardev || true
 	sudo insmod mychardev.ko
-	dmesg | tail -n 20
 
 .PHONY: all clean reload
