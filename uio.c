@@ -58,8 +58,8 @@
 int main(void)
 {
         printf("start app\n");
-    int fd = open("/dev/uio0", O_RDWR);
-    if (fd < 0) {
+    int uio_fd = open("/dev/uio0", O_RDWR);
+    if (uio_fd < 0) {
         perror("open");
         exit(EXIT_FAILURE);
     }
@@ -67,33 +67,33 @@ int main(void)
     while (1) {
         uint32_t info = 1; /* unmask */
         printf("start loop\n");
-        ssize_t nb = write(fd, &info, sizeof(info));
+        ssize_t nb = write(uio_fd, &info, sizeof(info));
         if (nb != (ssize_t)sizeof(info)) {
             perror("write\n");
-            close(fd);
+            close(uio_fd);
             exit(EXIT_FAILURE);
         }
         printf("write done\n");
 
         struct pollfd fds = {
-            .fd = fd,
+            .fd = uio_fd,
             .events = POLLIN,
         };
 
         int ret = poll(&fds, 1, -1);
         if (ret >= 1) {
-            nb = read(fd, &info, sizeof(info));
+            nb = read(uio_fd, &info, sizeof(info));
             if (nb == (ssize_t)sizeof(info)) {
                 /* Do something in response to the interrupt. */
                 printf("Interrupt #%u!\n", info);
             }
         } else {
             perror("poll()\n");
-            close(fd);
+            close(uio_fd);
             exit(EXIT_FAILURE);
         }
     }
 
-    close(fd);
+    close(uio_fd);
     exit(EXIT_SUCCESS);
 }
