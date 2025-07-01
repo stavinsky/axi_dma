@@ -17,7 +17,7 @@ test_client: test_client.c
 test_numbers: test_numbers.c
 	$(CC) -Wall -O2 -o test_numbers test_numbers.c
 
-test_numbers: uio.c
+uio: uio.c
 	$(CC) -Wall -O2 -o uio uio.c
 
 # Clean both kernel and userspace objects
