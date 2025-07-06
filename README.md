@@ -55,3 +55,12 @@ simple_register_0: simple_register@43c10000 {
     xlnx,s00-axi-addr-width = <0x4>;
     xlnx,s00-axi-data-width = <0x20>;
 };
+```
+
+
+```sh
+ . ../peta/images/linux/sdk/environment-setup-cortexa9t2hf-neon-xilinx-linux-gnueabi 
+
+make KDIR=../peta/images/linux/sdk/sysroots/cortexa9t2hf-neon-xilinx-linux-gnueabi/lib/modules/6.6.40-xilinx-g2b7f6f70a62a/build/ dma-proxy.ko
+
+```

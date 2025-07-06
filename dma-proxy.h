@@ -1,5 +1,5 @@
 #define BUFFER_SIZE (256 * 4 )	 	/* must match driver exactly */
-#define BUFFER_COUNT 18					/* driver only */
+#define BUFFER_COUNT 32					/* driver only */
 
 #define TX_BUFFER_COUNT 	1				/* app only, must be <= to the number in the driver */
 #define RX_BUFFER_COUNT 	 BUFFER_COUNT				/* app only, must be <= to the number in the driver */

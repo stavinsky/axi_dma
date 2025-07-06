@@ -1,0 +1,35 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "configurationProvider": "ms-vscode.makefile-tools"
+        },
+        {
+            "name": "peta_cross",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/dev/dev/fpga/projects/axi_dma_char_dev/peta/images/linux/sdk/sysroots/cortexa9t2hf-neon-xilinx-linux-gnueabi/lib/modules/6.6.40-xilinx-g2b7f6f70a62a/build/include/",
+                "/home/dev/dev/fpga/projects/axi_dma_char_dev/peta/images/linux/sdk/sysroots/cortexa9t2hf-neon-xilinx-linux-gnueabi/lib/modules/6.6.40-xilinx-g2b7f6f70a62a/build/arch/arm/include/generated",
+                "/home/dev/dev/fpga/projects/axi_dma_char_dev/peta/images/linux/sdk/sysroots/cortexa9t2hf-neon-xilinx-linux-gnueabi/lib/modules/6.6.40-xilinx-g2b7f6f70a62a/build/arch/arm/include"
+
+            ],
+            "defines": [],
+            "compilerPath": "/home/dev/dev/fpga/projects/axi_dma_char_dev/peta/images/linux/sdk/sysroots/x86_64-petalinux-linux/usr/bin/arm-xilinx-linux-gnueabi/arm-xilinx-linux-gnueabi-gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-arm",
+            "compilerArgs": [
+                "-mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong -O2 -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 --sysroot=/home/dev/dev/fpga/projects/axi_dma_char_dev/peta/images/linux/sdk/sysroots/cortexa9t2hf-neon-xilinx-linux-gnueabi"
+            ]
+        }
+    ],
+    "version": 4
+}

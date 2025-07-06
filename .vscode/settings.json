@@ -1,6 +1,13 @@
 {
     "files.associations": {
         "stdio.h": "c",
-        "dma-proxy.h": "c"
-    }
+        "dma-proxy.h": "c",
+        "kernel.h": "c",
+        "module.h": "c",
+        "dmaengine.h": "c",
+        "device.h": "c",
+        "stdint.h": "c"
+    },
+    "makefile.configureOnOpen": true,
+    "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 0}"
 }

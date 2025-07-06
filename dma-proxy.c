@@ -160,6 +160,7 @@ static void wait_for_transfer(struct dma_proxy_channel *pchannel_p)
 	{
 		pchannel_p->buffer_table_p[bdindex].status = PROXY_TIMEOUT;
 		printk(KERN_ERR "DMA timed out\n");
+		pchannel_p->buffer_table_p[bdindex].received = 0;
 
 		void __iomem *dma_regs = ioremap(0x40400000, 0x100);
 		if (dma_regs)
@@ -170,16 +171,15 @@ static void wait_for_transfer(struct dma_proxy_channel *pchannel_p)
 			printk(KERN_ERR "S2MM_DMACR after timeout: 0x%08x\n", s2mm_dmacr);
 			iounmap(dma_regs);
 		}
-
-		if (pchannel_p->channel_p->device->device_terminate_all)
-		{
-			pchannel_p->channel_p->device->device_terminate_all(pchannel_p->channel_p);
-			printk(KERN_ERR "DMA channel reset after timeout\n");
-		}
-		else
-		{
-			printk(KERN_ERR "No terminate_all support on DMA device\n");
-		}
+		// if (pchannel_p->channel_p->device->device_terminate_all)
+		// {
+		// 	pchannel_p->channel_p->device->device_terminate_all(pchannel_p->channel_p);
+		// 	printk(KERN_ERR "DMA channel reset after timeout\n");
+		// }
+		// else
+		// {
+		// 	printk(KERN_ERR "No terminate_all support on DMA device\n");
+		// }
 	}
 	else if (status != DMA_COMPLETE)
 	{
@@ -331,12 +331,68 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
+static ssize_t file_read(struct file *file, char __user *buf, size_t len, loff_t *offset) {
+	struct dma_proxy_channel *pchannel_p = (struct dma_proxy_channel *)file->private_data;
+	static uint8_t started = 0;
+	static uint8_t buffer_id = 0;
+	static uint8_t *buffer_pos;
+	static int remaining = 0;
+
+	if (!started) {
+		started = 1;
+		for (int i=0; i<BUFFER_COUNT; i++) {
+			pchannel_p->bdindex = i;
+			pchannel_p->buffer_table_p[i].length = BUFFER_SIZE;
+			start_transfer(pchannel_p);
+		}
+	}
+	int result_len = 0;
+	while (len > 0) {
+		
+		if (remaining == 0 ) {
+			pchannel_p->bdindex = buffer_id;
+			wait_for_transfer(pchannel_p);
+			if (pchannel_p->buffer_table_p[buffer_id].status != PROXY_NO_ERROR){
+				return -EIO;
+			}
+			remaining = BUFFER_SIZE;
+			buffer_pos = (uint8_t*)pchannel_p->buffer_table_p[buffer_id].buffer;
+			buffer_id += 1;
+			buffer_id %= BUFFER_COUNT;
+			pchannel_p->bdindex = buffer_id;
+			start_transfer(pchannel_p);
+		}
+		if (len >= remaining) {
+			if(copy_to_user(buf, buffer_pos, remaining)) {
+				return -EFAULT;
+			}
+			result_len += remaining;
+			len -= remaining;
+			buf += remaining; 
+			remaining = 0;
+			continue;
+		}
+
+		if(copy_to_user(buf, buffer_pos, len)) {
+			return -EFAULT;
+		}
+		remaining -= len;
+		buffer_pos += len;
+		result_len += len;
+		len = 0;
+
+	}
+	*offset += result_len;
+	return result_len;
+}
 static struct file_operations dm_fops = {
 	.owner = THIS_MODULE,
 	.open = local_open,
 	.release = release,
 	.unlocked_ioctl = ioctl,
-	.mmap = mmap};
+	.mmap = mmap,
+	.read = file_read
+};
 
 /* Initialize the driver to be a character device such that is responds to
  * file operations.
